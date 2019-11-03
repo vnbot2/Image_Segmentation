@@ -23,7 +23,8 @@ def main(config):
     
     lr = random.random()*0.0005 + 0.0000005
     augmentation_prob= random.random()*0.7
-    epoch = random.choice([100,150,200,250])
+    # epoch = random.choice([100,150,200,250])
+    epoch = 1000
     decay_ratio = random.random()*0.8
     decay_epoch = int(epoch*decay_ratio)
 
@@ -40,11 +41,12 @@ def main(config):
                             num_workers=config.num_workers,
                             mode='train',
                             augmentation_prob=config.augmentation_prob)
+
     valid_loader = get_loader(image_path=config.valid_path,
                             image_size=config.image_size,
                             batch_size=config.batch_size,
                             num_workers=config.num_workers,
-                            mode='valid',
+                            mode='test',
                             augmentation_prob=0.)
     test_loader = get_loader(image_path=config.test_path,
                             image_size=config.image_size,
@@ -70,13 +72,14 @@ if __name__ == '__main__':
     # model hyper-parameters
     parser.add_argument('--image_size', type=int, default=224)
     parser.add_argument('--t', type=int, default=3, help='t for Recurrent step of R2U_Net or R2AttU_Net')
+    parser.add_argument('--pretrained', type=str, default=None)
     
     # training hyper-parameters
     parser.add_argument('--img_ch', type=int, default=3)
     parser.add_argument('--output_ch', type=int, default=1)
     parser.add_argument('--num_epochs', type=int, default=100)
     parser.add_argument('--num_epochs_decay', type=int, default=70)
-    parser.add_argument('--batch_size', type=int, default=1)
+    parser.add_argument('--batch_size', type=int, default=16)
     parser.add_argument('--num_workers', type=int, default=8)
     parser.add_argument('--lr', type=float, default=0.0002)
     parser.add_argument('--beta1', type=float, default=0.5)        # momentum1 in Adam
@@ -91,7 +94,7 @@ if __name__ == '__main__':
     parser.add_argument('--model_type', type=str, default='U_Net', help='U_Net/R2U_Net/AttU_Net/R2AttU_Net')
     parser.add_argument('--model_path', type=str, default='./models')
     parser.add_argument('--train_path', type=str, default='./dataset/train/')
-    parser.add_argument('--valid_path', type=str, default='./dataset/valid/')
+    parser.add_argument('--valid_path', type=str, default='./dataset/test/')
     parser.add_argument('--test_path', type=str, default='./dataset/test/')
     parser.add_argument('--result_path', type=str, default='./result/')
 

@@ -7,6 +7,14 @@ from torch.utils import data
 from torchvision import transforms as T
 from torchvision.transforms import functional as F
 from PIL import Image
+import cv2
+from glob import glob
+import os
+import numpy as np
+
+def imread(path):
+	img = cv2.imread(path)
+	return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
 class ImageFolder(data.Dataset):
 	def __init__(self, root,image_size=224,mode='train',augmentation_prob=0.4):
@@ -14,23 +22,34 @@ class ImageFolder(data.Dataset):
 		self.root = root
 		
 		# GT : Ground Truth
-		self.GT_paths = root[:-1]+'_GT/'
-		self.image_paths = list(map(lambda x: os.path.join(root, x), os.listdir(root)))
+		# self.GT_paths = root[:-1]+'_GT/'
+		# self.image_paths = list(map(lambda x: os.path.join(root, x), os.listdir(root)))
+		self.imgs = [imread(path) for path in glob(os.path.join(root, '*.png'))]
 		self.image_size = image_size
 		self.mode = mode
 		self.RotationDegree = [0,90,180,270]
 		self.augmentation_prob = augmentation_prob
-		print("image count in {} path :{}".format(self.mode,len(self.image_paths)))
+		print("image count in {} path :{}".format(self.mode,len(self.imgs)))
 
 	def __getitem__(self, index):
 		"""Reads an image from a file and preprocesses it and returns."""
-		image_path = self.image_paths[index]
-		filename = image_path.split('_')[-1][:-len(".jpg")]
-		GT_path = self.GT_paths + 'ISIC_' + filename + '_segmentation.png'
+		# image_path = self.image_paths[index]
 
-		image = Image.open(image_path)
-		GT = Image.open(GT_path)
+		
+		# filename = image_path.split('_')[-1][:-len(".jpg")]
+		# GT_path = self.GT_paths + 'ISIC_' + filename + '_segmentation.png'
 
+
+		# image = Image.open(image_path)
+		# GT = Image.open(GT_path)
+		img_gt = self.imgs[index]
+		h, w = img_gt.shape[:2]
+		image = img_gt[:,:w//2]
+		image = Image.fromarray(image)
+		gt = img_gt[:,w//2:]
+		gt = cv2.cvtColor(gt, cv2.COLOR_RGB2GRAY)
+		GT = Image.fromarray(gt)
+		
 		aspect_ratio = image.size[1]/image.size[0]
 
 		Transform = []
@@ -38,6 +57,10 @@ class ImageFolder(data.Dataset):
 		ResizeRange = random.randint(300,320)
 		Transform.append(T.Resize((int(ResizeRange*aspect_ratio),ResizeRange)))
 		p_transform = random.random()
+
+		if self.mode == 'train':
+			RotationRange = random.randint(-180, 180)
+			Transform.append(T.RandomRotation((RotationRange,RotationRange)))
 
 		if (self.mode == 'train') and p_transform <= self.augmentation_prob:
 			RotationDegree = random.randint(0,3)
@@ -47,8 +70,6 @@ class ImageFolder(data.Dataset):
 
 			Transform.append(T.RandomRotation((RotationDegree,RotationDegree)))
 						
-			RotationRange = random.randint(-10,10)
-			Transform.append(T.RandomRotation((RotationRange,RotationRange)))
 			CropRange = random.randint(250,270)
 			Transform.append(T.CenterCrop((int(CropRange*aspect_ratio),CropRange)))
 			Transform = T.Compose(Transform)
@@ -78,7 +99,8 @@ class ImageFolder(data.Dataset):
 			Transform =[]
 
 
-		Transform.append(T.Resize((int(256*aspect_ratio)-int(256*aspect_ratio)%16,256)))
+		Transform.append(T.Resize((256,256)))
+		# Transform.append(T.Resize((int(256*aspect_ratio)-int(256*aspect_ratio)%16,256)))
 		Transform.append(T.ToTensor())
 		Transform = T.Compose(Transform)
 		
@@ -87,19 +109,19 @@ class ImageFolder(data.Dataset):
 
 		Norm_ = T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 		image = Norm_(image)
-
+		# print(image.shape)
 		return image, GT
 
 	def __len__(self):
 		"""Returns the total number of font files."""
-		return len(self.image_paths)
+		return len(self.imgs)
 
 def get_loader(image_path, image_size, batch_size, num_workers=2, mode='train',augmentation_prob=0.4):
 	"""Builds and returns Dataloader."""
 	
 	dataset = ImageFolder(root = image_path, image_size =image_size, mode=mode,augmentation_prob=augmentation_prob)
 	data_loader = data.DataLoader(dataset=dataset,
-								  batch_size=batch_size,
+								  batch_size=batch_size if mode=='train' else 1,
 								  shuffle=True,
 								  num_workers=num_workers)
 	return data_loader
