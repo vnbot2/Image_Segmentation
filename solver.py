@@ -1,17 +1,5 @@
-import cv2
-import os
-import numpy as np
-import time
-import datetime
-import torch
-import torchvision
-from torch import optim
-from torch.autograd import Variable
-import torch.nn.functional as F
+from common import *
 from evaluation import *
-from network import U_Net,R2U_Net,AttU_Net,R2AttU_Net
-import csv
-
 
 class Solver(object):
 	def __init__(self, config, train_loader, valid_loader, test_loader):
@@ -58,13 +46,13 @@ class Solver(object):
 	def build_model(self, config):
 		"""Build generator and discriminator."""
 		if self.model_type =='U_Net':
-			self.unet = U_Net(img_ch=3,output_ch=1)
+			self.unet = U_Net(img_ch=3,output_ch=config.output_ch)
 		elif self.model_type =='R2U_Net':
-			self.unet = R2U_Net(img_ch=3,output_ch=1,t=self.t)
+			self.unet = R2U_Net(img_ch=3,output_ch=config.output_ch,t=self.t)
 		elif self.model_type =='AttU_Net':
-			self.unet = AttU_Net(img_ch=3,output_ch=1)
+			self.unet = AttU_Net(img_ch=3,output_ch=config.output_ch)
 		elif self.model_type == 'R2AttU_Net':
-			self.unet = R2AttU_Net(img_ch=3,output_ch=1,t=self.t)
+			self.unet = R2AttU_Net(img_ch=3,output_ch=config.output_ch,t=self.t)
 			
 		# # Load the pretrained Encoder
 		# if os.path.isfile(config.pretrained):
@@ -144,18 +132,19 @@ class Solver(object):
 				DC = 0.		# Dice Coefficient
 				length = 0
 
-				for i, (images, GT) in enumerate(self.train_loader):
+				for i, data in enumerate(self.train_loader):
 					# GT : Ground Truth
-
+					images, GT = data[:2]
 					images = images.to(self.device)
 					GT = GT.to(self.device)
 
 					# SR : Segmentation Result
 					SR = self.unet(images)
-					SR_probs = F.sigmoid(SR)
+					SR_probs = SR.sigmoid()
 					SR_flat = SR_probs.view(SR_probs.size(0),-1)
 
 					GT_flat = GT.view(GT.size(0),-1)
+					# import ipdb; ipdb.set_trace()
 					loss = self.criterion(SR_flat,GT_flat)
 					epoch_loss += loss.item()
 
@@ -209,12 +198,13 @@ class Solver(object):
 				JS = 0.		# Jaccard Similarity
 				DC = 0.		# Dice Coefficient
 				length=0
-				for i, (images, GT) in enumerate(self.valid_loader):
+				for i, data in enumerate(self.valid_loader):
+					images, GT = data[:2]
 
 					images = images.to(self.device)
 					GT = GT.to(self.device)
 					with torch.no_grad():
-						SR = F.sigmoid(self.unet(images))
+						SR = self.unet(images).sigmoid()
 					acc += get_accuracy(SR,GT)
 					SE += get_sensitivity(SR,GT)
 					SP += get_specificity(SR,GT)
@@ -335,19 +325,22 @@ class Solver(object):
 		JS = 0.		# Jaccard Similarity
 		DC = 0.		# Dice Coefficient
 		length=0
-		for i, (images, GT) in enumerate(self.valid_loader):
+		for i, (images, GT, paths) in enumerate(self.test_loader):
 
 			images = images.to(self.device)
 			GT = GT.to(self.device)
 			with torch.no_grad():
 				SR = F.sigmoid(self.unet(images))
-			for j, img in enumerate(SR):
+
+				
+			for j, (img, path) in enumerate(zip(SR, paths)):
+				name = os.path.basename(path)
 				output_image = img[0].cpu().numpy()*255
 				output_image = np.stack([output_image]*3, axis=-1)
 				input_image = (images[0].cpu().permute([1,2,0]).numpy()+1)*127.5
-				output_path = os.path.join(test_output_sample, f'{i}_{j}.png')
+				output_path = os.path.join(test_output_sample, name)
 				# print(input_image.shape, output_image.shape)
-				combine = np.concatenate([input_image, output_image], axis=1)
+				combine = np.concatenate([input_image, output_image], axis=1)[:,:,::-1]
 				cv2.imwrite(output_path, combine)  
 				print('Output write at: ', output_path)
 

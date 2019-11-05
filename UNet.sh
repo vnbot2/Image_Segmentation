@@ -7,6 +7,6 @@
 # a='AttU_Net'
 # python3 main.py --model_type=$a
 a='R2AttU_Net'
-python3 main.py --model_type=$a
+python main.py --model_type=$a --batch_size 2
 
 # done

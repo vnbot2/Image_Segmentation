@@ -1,7 +1,7 @@
 import argparse
 import os
 from solver import Solver
-from data_loader import get_loader
+from data_loader import get_loader, get_loader_ocr
 from torch.backends import cudnn
 import random
 
@@ -34,21 +34,24 @@ def main(config):
     config.num_epochs_decay = decay_epoch
 
     print(config)
-        
-    train_loader = get_loader(image_path=config.train_path,
+    
+    get_loader_fn = get_loader_ocr
+
+    train_loader = get_loader_fn(image_path=config.train_path,
                             image_size=config.image_size,
                             batch_size=config.batch_size,
                             num_workers=config.num_workers,
                             mode='train',
                             augmentation_prob=config.augmentation_prob)
 
-    valid_loader = get_loader(image_path=config.valid_path,
+    valid_loader = get_loader_fn(image_path=config.valid_path,
                             image_size=config.image_size,
                             batch_size=config.batch_size,
                             num_workers=config.num_workers,
                             mode='test',
                             augmentation_prob=0.)
-    test_loader = get_loader(image_path=config.test_path,
+                            
+    test_loader = get_loader_fn(image_path=config.test_path,
                             image_size=config.image_size,
                             batch_size=config.batch_size,
                             num_workers=config.num_workers,
@@ -76,7 +79,8 @@ if __name__ == '__main__':
     
     # training hyper-parameters
     parser.add_argument('--img_ch', type=int, default=3)
-    parser.add_argument('--output_ch', type=int, default=1)
+    # parser.add_argument('--output_ch', type=int, default=1)
+    parser.add_argument('--output_ch', type=int, default=14)
     parser.add_argument('--num_epochs', type=int, default=100)
     parser.add_argument('--num_epochs_decay', type=int, default=70)
     parser.add_argument('--batch_size', type=int, default=16)
@@ -93,9 +97,9 @@ if __name__ == '__main__':
     parser.add_argument('--mode', type=str, default='train')
     parser.add_argument('--model_type', type=str, default='U_Net', help='U_Net/R2U_Net/AttU_Net/R2AttU_Net')
     parser.add_argument('--model_path', type=str, default='./models')
-    parser.add_argument('--train_path', type=str, default='./dataset/train/')
-    parser.add_argument('--valid_path', type=str, default='./dataset/test/')
-    parser.add_argument('--test_path', type=str, default='./dataset/test/')
+    parser.add_argument('--train_path', type=str, default='dataset/ocr_segment')
+    parser.add_argument('--valid_path', type=str, default='dataset/ocr_segment')
+    parser.add_argument('--test_path', type=str, default='dataset/ocr_segment')
     parser.add_argument('--result_path', type=str, default='./result/')
 
     parser.add_argument('--cuda_idx', type=int, default=1)
