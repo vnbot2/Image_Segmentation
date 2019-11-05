@@ -335,18 +335,18 @@ class Solver(object):
 		JS = 0.		# Jaccard Similarity
 		DC = 0.		# Dice Coefficient
 		length=0
-		for i, (images, GT) in enumerate(self.valid_loader):
+		for i, (images, GT, paths) in enumerate(self.valid_loader):
 
 			images = images.to(self.device)
 			GT = GT.to(self.device)
 			with torch.no_grad():
 				SR = F.sigmoid(self.unet(images))
-			for j, img in enumerate(SR):
+			for j, (img, path) in enumerate(zip(SR, paths)):
+				name = os.path.basename(path)
 				output_image = img[0].cpu().numpy()*255
 				output_image = np.stack([output_image]*3, axis=-1)
 				input_image = (images[0].cpu().permute([1,2,0]).numpy()+1)*127.5
-				output_path = os.path.join(test_output_sample, f'{i}_{j}.png')
-				# print(input_image.shape, output_image.shape)
+				output_path = os.path.join(test_output_sample, name+'{}.png')
 				combine = np.concatenate([input_image, output_image], axis=1)
 				cv2.imwrite(output_path, combine)  
 				print('Output write at: ', output_path)

@@ -5,3 +5,5 @@ models/
 result/
 test.sh
 cache
+benchmark
+datasets

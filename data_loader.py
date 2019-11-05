@@ -24,7 +24,8 @@ class ImageFolder(data.Dataset):
 		# GT : Ground Truth
 		# self.GT_paths = root[:-1]+'_GT/'
 		# self.image_paths = list(map(lambda x: os.path.join(root, x), os.listdir(root)))
-		self.imgs = [imread(path) for path in glob(os.path.join(root, '*.png'))]
+		self.paths = glob(os.path.join(root, '*.png'))
+		self.imgs = [imread(path) for path in self.paths]
 		self.image_size = image_size
 		self.mode = mode
 		self.RotationDegree = [0,90,180,270]
@@ -42,6 +43,7 @@ class ImageFolder(data.Dataset):
 
 		# image = Image.open(image_path)
 		# GT = Image.open(GT_path)
+		path = self.paths[index]
 		img_gt = self.imgs[index]
 		h, w = img_gt.shape[:2]
 		image = img_gt[:,:w//2]
@@ -110,7 +112,7 @@ class ImageFolder(data.Dataset):
 		Norm_ = T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
 		image = Norm_(image)
 		# print(image.shape)
-		return image, GT
+		return image, GT, path
 
 	def __len__(self):
 		"""Returns the total number of font files."""
