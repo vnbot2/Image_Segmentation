@@ -115,29 +115,28 @@ class Solver(object):
         #====================================== Training ===========================================#
         #===========================================================================================#
 
-
-
         # U-Net Train
 
         # Train for Encoder
         lr = self.lr
         best_unet_score = 0.
 
-        unet_path = os.path.join(self.model_path, '%s-best.pkl' %(self.model_type))
+        unet_path = os.path.join(
+            self.model_path, '%s-best.pkl' % (self.model_type))
         for epoch in range(self.num_epochs):
+            print('-'*40)
             self.unet.train()
-            epoch_loss = 0
-
-            acc = 0.    # Accuracy
-            SE = 0.		# Sensitivity (Recall)
-            SP = 0.		# Specificity
-            PC = 0. 	# Precision
-            F1 = 0.		# F1 Score
-            JS = 0.		# Jaccard Similarity
-            DC = 0.		# Dice Coefficient
+            acc = []    # Accuracy
+            SE = []		# Sensitivity (Recall)
+            SP = []		# Specificity
+            PC = [] 	# Precision
+            F1 = []		# F1 Score
+            JS = []		# Jaccard Similarity
+            DC = []		# Dice Coefficient
+            epoch_loss = []
             length = 0
-
-            for i, data in enumerate(self.train_loader):
+            pbar = enumerate(self.train_loader)
+            for i, data in pbar:
                 # GT : Ground Truth
                 images, GT = data[:2]
                 images = images.to(self.device)
@@ -172,7 +171,7 @@ class Solver(object):
 
                 loss = self.criterion(SR_flat, GT_flat)
                 # loss = self.criterion(SR,GT)
-                epoch_loss += loss.item()
+                epoch_loss.append(loss.item())
 
                 # Backprop + optimize
                 self.reset_grad()
@@ -185,28 +184,18 @@ class Solver(object):
                 eye = torch.eye(GT.size(1)).cuda()
                 SR = eye[aSR, :]
 
-                acc += get_accuracy(SR, GT)
-                SE += get_sensitivity(SR, GT)
-                SP += get_specificity(SR, GT)
-                PC += get_precision(SR, GT)
-                F1 += get_F1(SR, GT)
-                JS += get_JS(SR, GT)
-                DC += get_DC(SR, GT)
-                length += 1
-
-            acc = acc/length
-            SE = SE/length
-            SP = SP/length
-            PC = PC/length
-            F1 = F1/length
-            JS = JS/length
-            DC = DC/length
-
-            # Print the log info
-            print('Epoch [%d/%d], Loss: %.4f, \n[Training] Acc: %.4f, SE: %.4f, SP: %.4f, PC: %.4f, F1: %.4f, JS: %.4f, DC: %.4f' % (
-                epoch+1, self.num_epochs,
-                epoch_loss,
-                acc, SE, SP, PC, F1, JS, DC))
+                acc.append(get_accuracy(SR, GT))
+                SE.append(get_sensitivity(SR, GT))
+                SP.append(get_specificity(SR, GT))
+                PC.append(get_precision(SR, GT))
+                F1.append(get_F1(SR, GT))
+                JS.append(get_JS(SR, GT))
+                DC.append(get_DC(SR, GT))
+                s = '\rEpoch [%d/%d] |Step: %d |Loss: %.4f|[Training] Acc: %.4f, SE: %.4f, SP: %.4f, PC: %.4f, F1: %.4f, JS: %.4f, DC: %.4f' % (
+                    epoch+1, self.num_epochs, i,
+                    *[np.mean(x) for x in [epoch_loss, acc, SE, SP, PC, F1, JS, DC]])
+                # pbar.set_description(s)
+                print(s, end='')
 
             # Decay learning rate
             if (epoch+1) > (self.num_epochs - self.num_epochs_decay):
@@ -219,14 +208,13 @@ class Solver(object):
             # self.unet.train(False)
             self.unet.eval()
 
-            acc = 0.  # Accuracy
-            SE = 0.		# Sensitivity (Recall)
-            SP = 0.		# Specificity
-            PC = 0. 	# Precision
-            F1 = 0.		# F1 Score
-            JS = 0.		# Jaccard Similarity
-            DC = 0.		# Dice Coefficient
-            length = 0
+            acc = []  # Accuracy
+            SE = []		# Sensitivity (Recall)
+            SP = []		# Specificity
+            PC = [] 	# Precision
+            F1 = []		# F1 Score
+            JS = []		# Jaccard Similarity
+            DC = []		# Dice Coefficient
             for i, data in enumerate(self.valid_loader):
                 images, GT = data[:2]
                 images = images.to(self.device)
@@ -260,37 +248,26 @@ class Solver(object):
                 eye = torch.eye(GT.size(1)).cuda()
                 SR = eye[aSR, :]
 
-                acc += get_accuracy(SR, GT)
-                SE += get_sensitivity(SR, GT)
-                SP += get_specificity(SR, GT)
-                PC += get_precision(SR, GT)
-                F1 += get_F1(SR, GT)
-                JS += get_JS(SR, GT)
-                DC += get_DC(SR, GT)
+                acc.append(get_accuracy(SR, GT))
+                SE.append(get_sensitivity(SR, GT))
+                SP.append(get_specificity(SR, GT))
+                PC.append(get_precision(SR, GT))
+                F1.append(get_F1(SR, GT))
+                JS.append(get_JS(SR, GT))
+                DC.append(get_DC(SR, GT))
 
-                length += 1  # images.size(0)
-
-            # import ipdb; ipdb.set_trace()
-            acc = acc/length
-            SE = SE/length
-            SP = SP/length
-            PC = PC/length
-            F1 = F1/length
-            JS = JS/length
-            DC = DC/length
-            unet_score = JS + DC
-
-            print('[Validation] Acc: %.4f, SE: %.4f, SP: %.4f, PC: %.4f, F1: %.4f, JS: %.4f, DC: %.4f, , UNet-score: %.4f' % (
-                acc, SE, SP, PC, F1, JS, DC, unet_score))
+            unet_score = np.mean(JS) + np.mean(DC)
+            lst = [np.mean(x) for x in [acc, SE, SP, PC, F1, JS, DC]]
+            print(
+                '[Validation] Acc: {:0.4f}, SE: {:0.4f}, SP:{:0.4f}, PC: {:0.4f}, F1: {:0.4f}, JS: {:0.4f}, DC: {:0.4f}'.format(*lst))
 
             # Save Best U-Net model
-
             if unet_score > best_unet_score:
                 best_unet_score = unet_score
                 best_epoch = epoch
                 best_unet = self.unet.state_dict()
                 print('Best %s model score : %.4f' %
-                        (self.model_type, best_unet_score))
+                      (self.model_type, best_unet_score))
                 torch.save(best_unet, unet_path)
 
     def test(self):
@@ -326,13 +303,13 @@ class Solver(object):
             with torch.no_grad():
                 SR = self.unet(images).softmax(1)
 
-            for j, (mask, img, path) in enumerate(zip(SR,images, paths)):
+            for j, (mask, img, path) in enumerate(zip(SR, images, paths)):
                 name = os.path.basename(path)
                 mask = mask.argmax(0).cpu().numpy()
-                img = img.permute([1,2,0]).cpu().numpy()
+                img = img.permute([1, 2, 0]).cpu().numpy()
                 img = (img-img.min())/(img.max()-img.min())
                 img = (img*255).astype('uint8')
-                # output_image = 
+                # output_image =
                 # output_image = np.stack([output_image]*3, axis=-1)
                 # input_image = (images[0].cpu().permute(
                 #     [1, 2, 0]).numpy()+1)*127.5

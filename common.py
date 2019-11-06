@@ -1,3 +1,4 @@
+from tqdm import tqdm
 import csv
 import datetime
 import os

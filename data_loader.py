@@ -83,7 +83,6 @@ class ImageFolder(data.Dataset):
             Transform = []
 
         Transform.append(T.Resize((256, 256)))
-        # Transform.append(T.Resize((int(256*aspect_ratio)-int(256*aspect_ratio)%16,256)))
         Transform.append(T.ToTensor())
         Transform = T.Compose(Transform)
 
@@ -111,8 +110,9 @@ class ImageFolderOCRSegment(data.Dataset):
         self.label_paths = list(sorted(glob(os.path.join(root, 'B', '*.png'))))
         train_len = int(.8*len(self.img_paths))
         if mode == 'train':
-            self.img_paths = self.img_paths[:train_len]
-            self.label_paths = self.label_paths[:train_len]
+            idxs = np.random.choice(train_len, 6400)
+            self.img_paths =   [self.img_paths[idx] for idx in idxs]
+            self.label_paths = [self.label_paths[idx] for idx in idxs]
         else:
             self.img_paths = self.img_paths[train_len:]
             self.label_paths = self.label_paths[train_len:]
@@ -136,22 +136,13 @@ class ImageFolderOCRSegment(data.Dataset):
         image = self.imgs[index]
         # h, w = img_gt.shape[:2]
         image = Image.fromarray(image)
-        # gt = img_gt[:,w//2:]
         gt = self.lbls[index]
-        # gt = cv2.cvtColor(gt, cv2.COLOR_RGB2GRAY)
-        # import ipdb; ipdb.set_trace()
         GT = []
+
         eye = np.eye(self.num_ch)
         gt = eye[gt]
-
-        # _gt = gt == 0
-        # _gt = (_gt*255).astype('uint8')*0
-        # GT.append(Image.fromarray(_gt))
-        for i in range(self.num_ch):
-            _gt = gt[:,:,i]
-            if i == 0:
-                _gt = 1-_gt
-
+        for i in range(1, self.num_ch):
+            _gt = gt[:, :, i]
             _gt = (_gt*255).astype('uint8')
             GT.append(Image.fromarray(_gt))
 
@@ -215,15 +206,19 @@ class ImageFolderOCRSegment(data.Dataset):
         image = Transform(image)
         # import ipdb; ipdb.set_trace()
         GT_out = []
-        for i in range(self.num_ch):
-            x = Transform(GT[i]) 
+        for _gt in GT:
+            x = Transform(_gt)
             if i == 0:
                 x = 1-x
             GT_out.append(x)
-        GT =GT_out
+        GT = GT_out
+        GT = (torch.cat(GT) > .5).float()
+        gt0 = (GT.sum(0) == 0).float()[None]
+        GT = torch.cat([gt0, GT], 0)
+        # import ipdb; ipdb.set_trace()
         Norm_ = T.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         image = Norm_(image)
-        return image, (torch.cat(GT) > .5).float(), self.img_paths[index]
+        return image, GT, self.img_paths[index]
 
     def __len__(self):
         """Returns the total number of font files."""
@@ -262,7 +257,7 @@ def get_loader_ocr(image_path, image_size, batch_size, num_workers=2, mode='trai
         dataset = ImageFolderOCRSegment(
             root=image_path, image_size=image_size, mode=mode, augmentation_prob=augmentation_prob, num_ch=num_ch)
     data_loader = data.DataLoader(dataset=dataset,
-                                  batch_size=batch_size,# if mode == 'train' else 1
+                                  batch_size=batch_size,  # if mode == 'train' else 1
                                   shuffle=True,
                                   num_workers=num_workers)
     return data_loader
