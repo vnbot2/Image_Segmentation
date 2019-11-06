@@ -423,3 +423,106 @@ class R2AttU_Net(nn.Module):
         d1 = self.Conv_1x1(d2)
 
         return d1
+
+
+
+class ConvAttention(nn.Module):
+  def __init__(self, ch, which_conv=nn.Conv2d, name='attention'):
+    super(ConvAttention, self).__init__()
+    # Channel multiplier
+    self.ch = ch
+    self.which_conv = which_conv
+    self.theta = self.which_conv(self.ch, self.ch // 8, kernel_size=1, padding=0, bias=False)
+    self.phi = self.which_conv(self.ch, self.ch // 8, kernel_size=1, padding=0, bias=False)
+    self.g = self.which_conv(self.ch, self.ch // 2, kernel_size=1, padding=0, bias=False)
+    self.o = self.which_conv(self.ch // 2, self.ch, kernel_size=1, padding=0, bias=False)
+    # Learnable gain parameter
+    self.gamma = nn.Parameter(torch.tensor(0.), requires_grad=True)
+
+  def forward(self, x, y=None):
+    # Apply convs
+    theta = self.theta(x)
+    phi = F.max_pool2d(self.phi(x), [2,2])
+    g = F.max_pool2d(self.g(x), [2,2])    
+    # Perform reshapes
+    theta = theta.view(-1, self. ch // 8, x.shape[2] * x.shape[3])
+    phi = phi.view(-1, self. ch // 8, x.shape[2] * x.shape[3] // 4)
+    g = g.view(-1, self. ch // 2, x.shape[2] * x.shape[3] // 4)
+    # Matmul and softmax to get attention maps
+    beta = F.softmax(torch.bmm(theta.transpose(1, 2), phi), -1)
+    # Attention map times g path
+    o = self.o(torch.bmm(g, beta.transpose(1,2)).view(-1, self.ch // 2, x.shape[2], x.shape[3]))
+    return self.gamma * o + x
+
+
+
+class Att_UNet(nn.Module):
+    def __init__(self,img_ch=3,output_ch=1):
+        super(Att_UNet,self).__init__()
+        
+        self.Maxpool = nn.MaxPool2d(kernel_size=2,stride=2)
+
+        self.Conv1 = conv_block(ch_in=img_ch,ch_out=64)
+        self.Conv2 = conv_block(ch_in=64,ch_out=128)
+        self.Conv3 = conv_block(ch_in=128,ch_out=256)
+        self.Conv4 = conv_block(ch_in=256,ch_out=512)
+        self.Conv5 = conv_block(ch_in=512,ch_out=1024)
+
+        self.att_layer = ConvAttention(ch=1024)
+
+        self.Up5 = up_conv(ch_in=1024,ch_out=512)
+        self.Up_conv5 = conv_block(ch_in=1024, ch_out=512)
+
+
+        self.Up4 = up_conv(ch_in=512,ch_out=256)
+        self.Up_conv4 = conv_block(ch_in=512, ch_out=256)
+        
+        self.Up3 = up_conv(ch_in=256,ch_out=128)
+        self.Up_conv3 = conv_block(ch_in=256, ch_out=128)
+        
+        self.Up2 = up_conv(ch_in=128,ch_out=64)
+        self.Up_conv2 = conv_block(ch_in=128, ch_out=64)
+
+        self.Conv_1x1 = nn.Conv2d(64,output_ch,kernel_size=1,stride=1,padding=0)
+
+
+    def forward(self,x):
+        # encoding path
+        x1 = self.Conv1(x)
+
+        x2 = self.Maxpool(x1)
+        x2 = self.Conv2(x2)
+        
+        x3 = self.Maxpool(x2)
+        x3 = self.Conv3(x3)
+
+        x4 = self.Maxpool(x3)
+        x4 = self.Conv4(x4)
+
+        x5 = self.Maxpool(x4)
+        x5 = self.Conv5(x5)
+        #att
+        x5 = self.att_layer(x5)
+
+        # decoding + concat path
+        d5 = self.Up5(x5)
+        d5 = torch.cat((x4,d5),dim=1)
+        
+        d5 = self.Up_conv5(d5)
+        
+        d4 = self.Up4(d5)
+        d4 = torch.cat((x3,d4),dim=1)
+        d4 = self.Up_conv4(d4)
+
+        d3 = self.Up3(d4)
+        d3 = torch.cat((x2,d3),dim=1)
+        d3 = self.Up_conv3(d3)
+
+        d2 = self.Up2(d3)
+        d2 = torch.cat((x1,d2),dim=1)
+        d2 = self.Up_conv2(d2)
+
+        d1 = self.Conv_1x1(d2)
+
+        return d1
+

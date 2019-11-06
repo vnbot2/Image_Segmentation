@@ -5,3 +5,6 @@ models/
 result/
 test.sh
 cache
+sample_valid
+attunet-medi.zip
+benchmark

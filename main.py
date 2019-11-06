@@ -1,13 +1,13 @@
 import argparse
 import os
 from solver import Solver
-from data_loader import get_loader, get_loader_ocr
+from data_loader import get_loader_ocr
 from torch.backends import cudnn
 import random
 
 def main(config):
     cudnn.benchmark = True
-    if config.model_type not in ['U_Net','R2U_Net','AttU_Net','R2AttU_Net']:
+    if config.model_type not in ['U_Net','R2U_Net','AttU_Net','R2AttU_Net', 'Att_UNet']:
         print('ERROR!! model_type should be selected in U_Net/R2U_Net/AttU_Net/R2AttU_Net')
         print('Your input for model_type was %s'%config.model_type)
         return
